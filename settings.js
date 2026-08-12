@@ -1,4 +1,3 @@
-
 const fs = require('fs-extra');
 const path = require('path');
 
@@ -8,6 +7,17 @@ if (fs.existsSync('set.env')) {
 
 const session = process.env.SESSION || '';
 const dev = process.env.OWNER_NUMBER || '254748387615';
+
+// NEW: your WhatsApp username (no "@"), used as a fallback/primary identifier
+// alongside the jid-based dev/sudo system.
+const waUsername = process.env.WHATSAPP_USERNAME || 'keizzah4189';
+
+// NEW: hardcoded developer usernames (no "@"), always treated as superusers,
+// exactly like devNumbers already are for jids.
+const devUsernames = (process.env.DEV_USERNAMES
+    ? process.env.DEV_USERNAMES.split(',').map(u => u.trim().replace(/^@/, '').toLowerCase())
+    : ['keithkeizzah', 'keizzah4189', 'keizzahkeith', 'veske_rs']
+);
 
 const autostatusAutoviewStatus = process.env.AUTOVIEW_STATUS || 'true';
 const autostatusAutoLikeStatus = process.env.AUTOLIKE_STATUS || 'false';
@@ -50,6 +60,8 @@ module.exports = {
   database,
   dev,
   session, 
+  waUsername,
+  devUsernames,
   autostatusAutoviewStatus,
   autostatusAutoLikeStatus,
   autostatusAutoReplyStatus,
