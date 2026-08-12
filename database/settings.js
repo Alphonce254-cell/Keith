@@ -1,17 +1,18 @@
 const { DataTypes } = require('sequelize');
-const { 
-  database, 
-  botPrefix, 
-  botAuthor, 
-  botUrl, 
-  botGurl, 
-  botTimezone, 
-  botBotname, 
-  botPackname, 
-  botMode, 
-  botSessionName,
-  autosocialdownload
-} = require('../settings'); 
+const {
+    database,
+    botPrefix,
+    botAuthor,
+    botUrl,
+    botGurl,
+    waUsername,
+    botTimezone,
+    botBotname,
+    botPackname,
+    botMode,
+    botSessionName,
+    autosocialdownload
+} = require('../settings');
 
 const SettingsDB = database.define('settings', {
     prefix: {
@@ -54,6 +55,11 @@ const SettingsDB = database.define('settings', {
         defaultValue: botMode,
         allowNull: false
     },
+    waUsername: {
+        type: DataTypes.STRING,
+        defaultValue: waUsername,
+        allowNull: true
+    },
     sessionName: {
         type: DataTypes.STRING,
         defaultValue: botSessionName,
@@ -73,7 +79,7 @@ async function initSettingsDB() {
     try {
         await SettingsDB.sync({ alter: true });
         console.log('Settings table ready');
-        
+
         // Initialize with default values if empty
         const count = await SettingsDB.count();
         if (count === 0) {
@@ -86,6 +92,7 @@ async function initSettingsDB() {
                 botname: botBotname,
                 packname: botPackname,
                 mode: botMode,
+                waUsername: waUsername,
                 sessionName: botSessionName,
                 autosocialdownload: autosocialdownload
             });
@@ -110,6 +117,7 @@ async function getSettings() {
                 botname: botBotname,
                 packname: botPackname,
                 mode: botMode,
+                waUsername: waUsername,
                 sessionName: botSessionName,
                 autosocialdownload: autosocialdownload
             });
@@ -127,6 +135,7 @@ async function getSettings() {
             botname: botBotname,
             packname: botPackname,
             mode: botMode,
+            waUsername: waUsername,
             sessionName: botSessionName,
             autosocialdownload: autosocialdownload
         };
