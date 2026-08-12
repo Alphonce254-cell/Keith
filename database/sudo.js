@@ -1,6 +1,5 @@
-
 const { database } = require('../settings');
-const { DataTypes } = require('sequelize');
+const { DataTypes, Op } = require('sequelize');
 
 const SudoDB = database.define('sudo', {
     id: {
@@ -11,6 +10,13 @@ const SudoDB = database.define('sudo', {
     jid: {
         type: DataTypes.STRING,
         allowNull: false,
+        unique: true
+    },
+    // NEW: WhatsApp username (e.g. "veske_rs"), stored WITHOUT the leading "@".
+    // Optional - a sudo entry can exist with just a jid, just as before.
+    username: {
+        type: DataTypes.STRING,
+        allowNull: true,
         unique: true
     }
 }, {
@@ -27,23 +33,45 @@ async function initSudoDB() {
     }
 }
 
+// Normalizes a username: strips a leading "@" and lowercases it.
+function normalizeUsername(username) {
+    if (!username) return null;
+    return username.toString().trim().replace(/^@/, '').toLowerCase();
+}
 
 function getSudoNumbers() {
     return getAllSudoNumbers();
 }
 
-function setSudo(jid) {
-    return addSudoNumber(jid);
+// setSudo(jid, username?) - username is optional, kept for backwards compatibility
+function setSudo(jid, username) {
+    return addSudoNumber(jid, username);
 }
 
-function delSudo(jid) {
-    return removeSudoNumber(jid);
+// delSudo(identifier) - identifier can be a jid/number OR a username
+function delSudo(identifier) {
+    return removeSudoNumber(identifier);
 }
 
 // Database functions
-async function isSudo(jid) {
+// isSudo(identifier) - checks username first (if it looks like one / matches a record),
+// then falls back to jid, exactly like before.
+async function isSudo(identifier) {
     try {
-        const count = await SudoDB.count({ where: { jid } });
+        if (!identifier) return false;
+
+        const cleanUsername = normalizeUsername(identifier);
+        const cleanJid = identifier.toString().split('@')[0];
+
+        const count = await SudoDB.count({
+            where: {
+                [Op.or]: [
+                    { username: cleanUsername },
+                    { jid: cleanJid },
+                    { jid: identifier }
+                ]
+            }
+        });
         return count > 0;
     } catch (error) {
         console.error('Error checking sudo status:', error);
@@ -51,33 +79,67 @@ async function isSudo(jid) {
     }
 }
 
-async function addSudoNumber(jid) {
+// addSudoNumber(jid, username?)
+// - jid: required, phone number / jid part before "@"
+// - username: optional WhatsApp username (with or without leading "@")
+async function addSudoNumber(jid, username) {
     try {
-        const [result, created] = await SudoDB.findOrCreate({
-            where: { jid },
-            defaults: { jid }
+        const cleanUsername = normalizeUsername(username);
+
+        // Already sudo by jid or by username? Don't duplicate.
+        const existing = await SudoDB.findOne({
+            where: {
+                [Op.or]: [
+                    { jid },
+                    ...(cleanUsername ? [{ username: cleanUsername }] : [])
+                ]
+            }
         });
-        if (created) {
-            console.log(`✅ Added sudo number: ${jid}`);
-            return true;
-        } else {
-            console.log(`ℹ️ Sudo number already exists: ${jid}`);
-            return false; // already exists
+
+        if (existing) {
+            // If it exists but is missing the username we now have, backfill it.
+            if (cleanUsername && !existing.username) {
+                existing.username = cleanUsername;
+                await existing.save();
+                console.log(`ℹ️ Updated sudo entry ${jid} with username: ${cleanUsername}`);
+            } else {
+                console.log(`ℹ️ Sudo number already exists: ${jid}`);
+            }
+            return false; // already existed
         }
+
+        await SudoDB.create({ jid, username: cleanUsername });
+        console.log(`✅ Added sudo number: ${jid}${cleanUsername ? ` (@${cleanUsername})` : ''}`);
+        return true;
     } catch (error) {
         console.error('❌ Error adding sudo number:', error);
         return false;
     }
 }
 
-async function removeSudoNumber(jid) {
+// removeSudoNumber(identifier) - identifier can be a jid/number OR a username
+async function removeSudoNumber(identifier) {
     try {
-        const deleted = await SudoDB.destroy({ where: { jid } });
+        if (!identifier) return false;
+
+        const cleanUsername = normalizeUsername(identifier);
+        const cleanJid = identifier.toString().split('@')[0];
+
+        const deleted = await SudoDB.destroy({
+            where: {
+                [Op.or]: [
+                    { username: cleanUsername },
+                    { jid: cleanJid },
+                    { jid: identifier }
+                ]
+            }
+        });
+
         if (deleted) {
-            console.log(`✅ Removed sudo number: ${jid}`);
+            console.log(`✅ Removed sudo entry: ${identifier}`);
             return true;
         } else {
-            console.log(`ℹ️ Sudo number not found: ${jid}`);
+            console.log(`ℹ️ Sudo entry not found: ${identifier}`);
             return false; // not found
         }
     } catch (error) {
@@ -99,6 +161,21 @@ async function getAllSudoNumbers() {
     }
 }
 
+// NEW: returns all sudo usernames (without "@"), skipping empty ones.
+async function getAllSudoUsernames() {
+    try {
+        const results = await SudoDB.findAll({
+            attributes: ['username'],
+            where: { username: { [Op.ne]: null } },
+            raw: true
+        });
+        return results.map(item => item.username).filter(Boolean);
+    } catch (error) {
+        console.error('❌ Error getting sudo usernames:', error);
+        return [];
+    }
+}
+
 async function isSudoTableNotEmpty() {
     try {
         const count = await SudoDB.count();
@@ -116,7 +193,6 @@ initSudoDB().catch(err => {
 
 
 module.exports = {
-   
     getSudoNumbers,
     setSudo,
     delSudo,
@@ -124,7 +200,9 @@ module.exports = {
     addSudoNumber,
     removeSudoNumber,
     getAllSudoNumbers,
+    getAllSudoUsernames,
     isSudoTableNotEmpty,
     initSudoDB,
+    normalizeUsername,
     SudoDB
 };
