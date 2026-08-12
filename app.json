@@ -64,7 +64,7 @@
     
     },
     "WHATSAPP_USERNAME": {
-      "description": "add your notified whatsapp username correctly",
+      "description": "add any of your whatsapp username. this help in bot sudo default. example; veske_rs",
       "required": true
     },
     "AUTO_SOCIAL_DOWNLOAD": {
